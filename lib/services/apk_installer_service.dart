@@ -1,18 +1,31 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:install_plugin/install_plugin.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ApkInstallerService {
   final Dio _dio = Dio();
+  int? _cachedAndroidVersion;
 
   // Get Android SDK version
-  int get androidVersion {
+  Future<int> get androidVersion async {
+    if (_cachedAndroidVersion != null) {
+      return _cachedAndroidVersion!;
+    }
+
     if (Platform.isAndroid) {
-      final version = Platform.version.split(' ')[0];
-      final match = RegExp(r'(\d+)').firstMatch(version);
-      return int.tryParse(match?.group(1) ?? '0') ?? 0;
+      try {
+        final deviceInfo = DeviceInfoPlugin();
+        final androidInfo = await deviceInfo.androidInfo;
+        _cachedAndroidVersion = androidInfo.version.sdkInt;
+        return _cachedAndroidVersion!;
+      } catch (e) {
+        // Fallback to Android 10
+        _cachedAndroidVersion = 29;
+        return 29;
+      }
     }
     return 0;
   }
@@ -20,15 +33,16 @@ class ApkInstallerService {
   // Request all necessary permissions
   Future<Map<String, bool>> requestAllPermissions() async {
     Map<String, bool> permissionResults = {};
+    final sdkVersion = await androidVersion;
 
     // Storage permissions for Android 10 and below
-    if (androidVersion <= 29) {
+    if (sdkVersion <= 29) {
       final storageStatus = await Permission.storage.request();
       permissionResults['storage'] = storageStatus.isGranted;
     }
 
     // Manage external storage for Android 11+
-    if (androidVersion >= 30) {
+    if (sdkVersion >= 30) {
       final manageStorageStatus = await Permission.manageExternalStorage.request();
       permissionResults['manageExternalStorage'] = manageStorageStatus.isGranted;
       
@@ -39,7 +53,7 @@ class ApkInstallerService {
     }
 
     // Notification permission for Android 13+
-    if (androidVersion >= 33) {
+    if (sdkVersion >= 33) {
       final notificationStatus = await Permission.notification.request();
       permissionResults['notification'] = notificationStatus.isGranted;
     }
@@ -55,10 +69,11 @@ class ApkInstallerService {
   Future<bool> checkPermissions() async {
     bool hasStoragePermission = true;
     bool hasInstallPermission = true;
+    final sdkVersion = await androidVersion;
 
-    if (androidVersion <= 29) {
+    if (sdkVersion <= 29) {
       hasStoragePermission = await Permission.storage.isGranted;
-    } else if (androidVersion >= 30) {
+    } else if (sdkVersion >= 30) {
       hasStoragePermission = await Permission.manageExternalStorage.isGranted;
     }
 
@@ -74,9 +89,11 @@ class ApkInstallerService {
     String? fileName,
   }) async {
     try {
+      final sdkVersion = await androidVersion;
+      
       // Get appropriate directory based on Android version
       Directory? directory;
-      if (androidVersion >= 30) {
+      if (sdkVersion >= 30) {
         directory = await getExternalStorageDirectory();
       } else {
         directory = Directory('/storage/emulated/0/Download');
@@ -138,8 +155,12 @@ class ApkInstallerService {
         throw Exception('File is not an APK');
       }
 
-      // Install the APK
-      await InstallPlugin.install(filePath);
+      // Open APK file which triggers installation
+      final result = await OpenFilex.open(filePath);
+      
+      if (result.type != ResultType.done && result.type != ResultType.noAppToOpen) {
+        throw Exception('Failed to open APK: ${result.message}');
+      }
     } catch (e) {
       throw Exception('Installation failed: $e');
     }
@@ -183,18 +204,19 @@ class ApkInstallerService {
   // Get permission status summary
   Future<Map<String, String>> getPermissionStatus() async {
     Map<String, String> status = {};
+    final sdkVersion = await androidVersion;
 
-    if (androidVersion <= 29) {
+    if (sdkVersion <= 29) {
       final storage = await Permission.storage.status;
       status['Storage'] = storage.toString().split('.').last;
     }
 
-    if (androidVersion >= 30) {
+    if (sdkVersion >= 30) {
       final manageStorage = await Permission.manageExternalStorage.status;
       status['Manage External Storage'] = manageStorage.toString().split('.').last;
     }
 
-    if (androidVersion >= 33) {
+    if (sdkVersion >= 33) {
       final notification = await Permission.notification.status;
       status['Notification'] = notification.toString().split('.').last;
     }
@@ -208,8 +230,9 @@ class ApkInstallerService {
   // Clean up old APK files
   Future<void> cleanupOldApks() async {
     try {
+      final sdkVersion = await androidVersion;
       Directory? directory;
-      if (androidVersion >= 30) {
+      if (sdkVersion >= 30) {
         directory = await getExternalStorageDirectory();
       } else {
         directory = Directory('/storage/emulated/0/Download');

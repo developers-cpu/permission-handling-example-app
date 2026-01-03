@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:install_plugin/install_plugin.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 
 void main() {
@@ -36,22 +37,41 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   String _statusMessage = 'Ready to download';
-  String _apkUrl = '';
   final TextEditingController _urlController = TextEditingController();
+  int _androidSdkVersion = 29; // Default to Android 10
 
   @override
   void initState() {
     super.initState();
-    _checkAndRequestPermissions();
+    _initializeApp();
+  }
+
+  // Initialize app and get Android version
+  Future<void> _initializeApp() async {
+    await _getAndroidVersion();
+    await _checkAndRequestPermissions();
+  }
+
+  // Get accurate Android SDK version
+  Future<void> _getAndroidVersion() async {
+    if (Platform.isAndroid) {
+      try {
+        final deviceInfo = DeviceInfoPlugin();
+        final androidInfo = await deviceInfo.androidInfo;
+        setState(() {
+          _androidSdkVersion = androidInfo.version.sdkInt;
+        });
+      } catch (e) {
+        // Fallback to default
+        setState(() {
+          _androidSdkVersion = 29;
+        });
+      }
+    }
   }
 
   // Check Android version
-  int get androidVersion {
-    if (Platform.isAndroid) {
-      return int.tryParse(Platform.version.split('.').first) ?? 0;
-    }
-    return 0;
-  }
+  int get androidVersion => _androidSdkVersion;
 
   // Request all necessary permissions based on Android version
   Future<void> _checkAndRequestPermissions() async {
@@ -59,44 +79,59 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
       _statusMessage = 'Checking permissions...';
     });
 
-    Map<Permission, PermissionStatus> statuses = {};
+    try {
+      List<String> permissionResults = [];
+      bool allGranted = true;
 
-    // Android 10 (API 29) and below - Storage permissions
-    if (androidVersion <= 29) {
-      statuses[Permission.storage] = await Permission.storage.request();
-    }
+      // Android 10 (API 29) and below - Storage permissions
+      if (androidVersion <= 29) {
+        final status = await Permission.storage.request();
+        permissionResults.add('Storage: ${status.isGranted ? "✓" : "✗"}');
+        if (!status.isGranted) allGranted = false;
+      }
 
-    // Android 11 (API 30) and above - Manage external storage
-    if (androidVersion >= 30) {
-      statuses[Permission.manageExternalStorage] = 
-          await Permission.manageExternalStorage.request();
-    }
+      // Android 11 (API 30) and above - Manage external storage
+      if (androidVersion >= 30) {
+        final status = await Permission.manageExternalStorage.request();
+        permissionResults.add('Manage Storage: ${status.isGranted ? "✓" : "✗"}');
+        if (!status.isGranted) {
+          allGranted = false;
+          // Open settings for manual approval
+          _showSnackBar('Please enable "All files access" in Settings');
+          await Future.delayed(const Duration(seconds: 2));
+          await openAppSettings();
+        }
+      }
 
-    // Android 13 (API 33) and above - Notification permission
-    if (androidVersion >= 33) {
-      statuses[Permission.notification] = await Permission.notification.request();
-    }
+      // Android 13 (API 33) and above - Notification permission
+      if (androidVersion >= 33) {
+        final status = await Permission.notification.request();
+        permissionResults.add('Notifications: ${status.isGranted ? "✓" : "✗"}');
+        if (!status.isGranted) allGranted = false;
+      }
 
-    // Install packages permission (all versions)
-    statuses[Permission.requestInstallPackages] = 
-        await Permission.requestInstallPackages.request();
+      // Install packages permission (all versions)
+      final installStatus = await Permission.requestInstallPackages.request();
+      permissionResults.add('Install Apps: ${installStatus.isGranted ? "✓" : "✗"}');
+      if (!installStatus.isGranted) allGranted = false;
 
-    // Check if all permissions are granted
-    bool allGranted = statuses.values.every((status) => status.isGranted);
+      setState(() {
+        if (allGranted) {
+          _statusMessage = 'All permissions granted ✓\n${permissionResults.join("\n")}';
+        } else {
+          _statusMessage = 'Some permissions needed:\n${permissionResults.join("\n")}';
+        }
+      });
 
-    setState(() {
       if (allGranted) {
-        _statusMessage = 'All permissions granted. Ready to download.';
+        _showSnackBar('All permissions granted! Ready to download.');
       } else {
-        _statusMessage = 'Some permissions denied. App may not work properly.';
+        _showSnackBar('Please grant all permissions to use the app');
       }
-    });
-
-    // If manage external storage is not granted, open settings
-    if (androidVersion >= 30) {
-      if (!await Permission.manageExternalStorage.isGranted) {
-        await openAppSettings();
-      }
+    } catch (e) {
+      setState(() {
+        _statusMessage = 'Error checking permissions: $e';
+      });
     }
   }
 
@@ -178,12 +213,16 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
         throw Exception('APK file not found');
       }
 
-      // Install using install_plugin
-      await InstallPlugin.install(filePath);
+      // Open APK file which triggers installation
+      final result = await OpenFilex.open(filePath);
 
       setState(() {
         _isDownloading = false;
-        _statusMessage = 'Installation started. Check notifications.';
+        if (result.type == ResultType.done) {
+          _statusMessage = 'Installation started. Follow the prompts.';
+        } else {
+          _statusMessage = 'Installation prompt opened: ${result.message}';
+        }
       });
 
       _showSnackBar('Installation prompt opened');
@@ -293,7 +332,7 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
                     ),
                     const SizedBox(height: 8),
                     Text('Android Version: ${Platform.version}'),
-                    Text('SDK Level: $androidVersion'),
+                    Text('SDK Level: $androidVersion (API $_androidSdkVersion)'),
                   ],
                 ),
               ),

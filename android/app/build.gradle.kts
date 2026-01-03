@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.permission_handling_example_app"
-    compileSdk = 35  // Android 16
+    compileSdk = 36  // Android 16
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
