@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:install_plugin/install_plugin.dart';
+import 'package:flutter_app_installer/flutter_app_installer.dart';
 import 'dart:io';
 
 void main() {
@@ -24,7 +24,19 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+                                                                                        
 
+
+
+
+
+
+
+
+                                                                                        '
+                                                                                        
+                                                                                        
+                                                                                        '
 class ApkInstallerHome extends StatefulWidget {
   const ApkInstallerHome({super.key});
 
@@ -36,7 +48,6 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   String _statusMessage = 'Ready to download';
-  String _apkUrl = '';
   final TextEditingController _urlController = TextEditingController();
 
   @override
@@ -45,58 +56,51 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
     _checkAndRequestPermissions();
   }
 
-  // Check Android version
-  int get androidVersion {
-    if (Platform.isAndroid) {
-      return int.tryParse(Platform.version.split('.').first) ?? 0;
-    }
-    return 0;
-  }
-
   // Request all necessary permissions based on Android version
   Future<void> _checkAndRequestPermissions() async {
     setState(() {
       _statusMessage = 'Checking permissions...';
     });
 
-    Map<Permission, PermissionStatus> statuses = {};
+    try {
+      // Request install packages permission (required for all versions)
+      final installStatus = await Permission.requestInstallPackages.request();
 
-    // Android 10 (API 29) and below - Storage permissions
-    if (androidVersion <= 29) {
-      statuses[Permission.storage] = await Permission.storage.request();
-    }
+      // Try to request storage-related permissions
+      // We'll handle each one individually to avoid the "pending" error
 
-    // Android 11 (API 30) and above - Manage external storage
-    if (androidVersion >= 30) {
-      statuses[Permission.manageExternalStorage] = 
-          await Permission.manageExternalStorage.request();
-    }
-
-    // Android 13 (API 33) and above - Notification permission
-    if (androidVersion >= 33) {
-      statuses[Permission.notification] = await Permission.notification.request();
-    }
-
-    // Install packages permission (all versions)
-    statuses[Permission.requestInstallPackages] = 
-        await Permission.requestInstallPackages.request();
-
-    // Check if all permissions are granted
-    bool allGranted = statuses.values.every((status) => status.isGranted);
-
-    setState(() {
-      if (allGranted) {
-        _statusMessage = 'All permissions granted. Ready to download.';
-      } else {
-        _statusMessage = 'Some permissions denied. App may not work properly.';
+      // Try storage permission first (for older Android)
+      try {
+        await Permission.storage.request();
+      } catch (e) {
+        print('Storage permission not available: $e');
       }
-    });
 
-    // If manage external storage is not granted, open settings
-    if (androidVersion >= 30) {
-      if (!await Permission.manageExternalStorage.isGranted) {
+      // Try manage external storage (for Android 11+)
+      PermissionStatus? manageStorageStatus;
+      try {
+        manageStorageStatus = await Permission.manageExternalStorage.request();
+      } catch (e) {
+        print('Manage external storage permission not available: $e');
+      }
+
+      setState(() {
+        if (installStatus.isGranted) {
+          _statusMessage = 'Install permission granted. Ready to download.';
+        } else {
+          _statusMessage = 'Install permission required. Please grant it.';
+        }
+      });
+
+      // If manage external storage is denied, open settings
+      if (manageStorageStatus != null && manageStorageStatus.isDenied) {
         await openAppSettings();
       }
+    } catch (e) {
+      setState(() {
+        _statusMessage = 'Permission check error: $e';
+      });
+      print('Permission error: $e');
     }
   }
 
@@ -114,17 +118,8 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
     });
 
     try {
-      // Get download directory
-      Directory? directory;
-      if (androidVersion >= 30) {
-        directory = await getExternalStorageDirectory();
-      } else {
-        directory = Directory('/storage/emulated/0/Download');
-      }
-
-      if (directory == null) {
-        throw Exception('Could not access storage directory');
-      }
+      // Get download directory - use app-specific directory which doesn't require special permissions
+      final directory = await getApplicationDocumentsDirectory();
 
       // Create directory if it doesn't exist
       if (!await directory.exists()) {
@@ -148,7 +143,7 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
           if (total != -1) {
             setState(() {
               _downloadProgress = received / total;
-              _statusMessage = 
+              _statusMessage =
                   'Downloading: ${(received / total * 100).toStringAsFixed(0)}%';
             });
           }
@@ -178,8 +173,9 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
         throw Exception('APK file not found');
       }
 
-      // Install using install_plugin
-      await InstallPlugin.install(filePath);
+      // Install using flutter_app_installer
+      final installer = FlutterAppInstaller();
+      await installer.installApk(filePath: filePath);
 
       setState(() {
         _isDownloading = false;
@@ -197,9 +193,9 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -292,8 +288,7 @@ class _ApkInstallerHomeState extends State<ApkInstallerHome> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
-                    Text('Android Version: ${Platform.version}'),
-                    Text('SDK Level: $androidVersion'),
+                    Text('Platform: ${Platform.operatingSystem}'),
                   ],
                 ),
               ),

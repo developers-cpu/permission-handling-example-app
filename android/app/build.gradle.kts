@@ -7,8 +7,8 @@ plugins {
 
 android {
     namespace = "com.example.permission_handling_example_app"
-    compileSdk = 35  // Android 16
-    ndkVersion = flutter.ndkVersion
+    compileSdk = 36  // Android 16
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -25,7 +25,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 29  // Android 10 (Q)
-        targetSdk = 35  // Android 16 (latest)
+        targetSdk = 36  // Android 16 (latest)
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

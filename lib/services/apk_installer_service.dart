@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:install_plugin/install_plugin.dart';
+import 'package:flutter_app_installer/flutter_app_installer.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ApkInstallerService {
@@ -29,9 +29,11 @@ class ApkInstallerService {
 
     // Manage external storage for Android 11+
     if (androidVersion >= 30) {
-      final manageStorageStatus = await Permission.manageExternalStorage.request();
-      permissionResults['manageExternalStorage'] = manageStorageStatus.isGranted;
-      
+      final manageStorageStatus = await Permission.manageExternalStorage
+          .request();
+      permissionResults['manageExternalStorage'] =
+          manageStorageStatus.isGranted;
+
       // If not granted, open settings
       if (!manageStorageStatus.isGranted) {
         await openAppSettings();
@@ -92,7 +94,8 @@ class ApkInstallerService {
       }
 
       // Generate file name
-      final apkFileName = fileName ?? 'app_${DateTime.now().millisecondsSinceEpoch}.apk';
+      final apkFileName =
+          fileName ?? 'app_${DateTime.now().millisecondsSinceEpoch}.apk';
       final filePath = '${directory.path}/$apkFileName';
 
       // Delete old file if exists
@@ -111,9 +114,7 @@ class ApkInstallerService {
           }
         },
         options: Options(
-          headers: {
-            'Accept': 'application/vnd.android.package-archive',
-          },
+          headers: {'Accept': 'application/vnd.android.package-archive'},
           receiveTimeout: const Duration(minutes: 10),
           sendTimeout: const Duration(minutes: 10),
         ),
@@ -139,7 +140,8 @@ class ApkInstallerService {
       }
 
       // Install the APK
-      await InstallPlugin.install(filePath);
+      final installer = FlutterAppInstaller();
+      await installer.installApk(filePath: filePath);
     } catch (e) {
       throw Exception('Installation failed: $e');
     }
@@ -160,7 +162,7 @@ class ApkInstallerService {
       }
 
       onStatusChange('Starting download...');
-      
+
       // Download APK
       final filePath = await downloadApk(
         url: url,
@@ -191,7 +193,10 @@ class ApkInstallerService {
 
     if (androidVersion >= 30) {
       final manageStorage = await Permission.manageExternalStorage.status;
-      status['Manage External Storage'] = manageStorage.toString().split('.').last;
+      status['Manage External Storage'] = manageStorage
+          .toString()
+          .split('.')
+          .last;
     }
 
     if (androidVersion >= 33) {

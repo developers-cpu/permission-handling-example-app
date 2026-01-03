@@ -86,6 +86,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_app_installer:
+    dependency: "direct main"
+    description:
+      name: flutter_app_installer
+      sha256: "9672fc142a840b1cd86f621e4cc43a6beecb91d1469cf6bb00bbae7fe0b436fd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.2"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -112,14 +120,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
-  install_plugin:
-    dependency: "direct main"
-    description:
-      name: install_plugin
-      sha256: "6fb67ba0781e75de4f2f2266ed25e835bfd277c5bfc2ed034af52774355857c6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.0"
   leak_tracker:
     dependency: transitive
     description:

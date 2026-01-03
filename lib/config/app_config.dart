@@ -2,8 +2,8 @@
 /// Customize these values for your specific use case
 class AppConfig {
   // API Configuration
-  static const String apiBaseUrl = 'https://your-api-server.com';
-  static const String apkDownloadEndpoint = '/api/latest-apk';
+  static const String apiBaseUrl = 'https://uat.bazaarpro.app/api/v1/';
+  static const String apkDownloadEndpoint = '';
   
   // App Information
   static const String appName = 'APK Installer';
