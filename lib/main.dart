@@ -24,19 +24,7 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-                                                                                        
 
-
-
-
-
-
-
-
-                                                                                        '
-                                                                                        
-                                                                                        
-                                                                                        '
 class ApkInstallerHome extends StatefulWidget {
   const ApkInstallerHome({super.key});
 
